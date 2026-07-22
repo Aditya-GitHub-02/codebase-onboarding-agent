@@ -36,7 +36,7 @@ flowchart LR
 
 - **Explorer** — pulls repo metadata and the full file tree from the GitHub API, then scores every path with the filtering heuristic below to pick ~12 files worth reading.
 - **Reader** — fetches the content of each priority file and asks the LLM for a 2-3 sentence summary of its purpose.
-- **Synthesizer** — combines the README, repo metadata, and file summaries into a structured markdown brief.
+- **Synthesizer** — combines the README, repo metadata, and file summaries into a structured markdown brief (Overview, Tech Stack & Dependencies, Architecture, Key Modules, Entry Points, Suggested First Tasks), instructed to cite specific file paths rather than write generic filler.
 - **Critic** — checks the draft against the *full* file tree and asks: did we miss an obviously important file (entry point, core config, CI setup)? If so, it adds up to 3 more files and loops back to the Reader. Capped at 2 iterations to bound cost.
 
 ## The filtering strategy

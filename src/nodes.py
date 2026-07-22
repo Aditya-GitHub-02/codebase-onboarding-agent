@@ -1,6 +1,6 @@
 from langchain_groq import ChatGroq
 
-from src.config import GROQ_API_KEY, GROQ_MODEL
+from src.config import GROQ_API_KEY, GROQ_MODEL, MAX_PRIORITY_FILES
 from src.state import AgentState
 from src.tools import get_readme, get_repo_metadata, get_repo_tree, read_file_content
 
@@ -93,7 +93,7 @@ def explorer_node(state: AgentState) -> AgentState:
         **state,
         "metadata": metadata,
         "file_tree": file_tree,
-        "priority_files": select_priority_files(file_tree),
+        "priority_files": select_priority_files(file_tree, max_files=MAX_PRIORITY_FILES),
     }
 
 
@@ -110,8 +110,17 @@ def reader_node(state: AgentState) -> AgentState:
         if content is None:
             continue
         response = llm.invoke(
-            "Summarize the purpose of this file in 2-3 sentences, for someone "
-            f"onboarding to the codebase.\n\nFile: {path}\n\n{content[:6000]}"
+            "You are briefing a developer onboarding to this codebase. Summarize the "
+            f"file `{path}` in 3-4 sentences, and be concrete, not generic:\n"
+            "1. What this file actually does (its role, not a restatement of its name).\n"
+            "2. Key functions/classes/exports it defines, or key config/dependencies it "
+            "declares, if applicable.\n"
+            "3. What other parts of the codebase it likely connects to (imports, "
+            "config it feeds, APIs it exposes), inferred from the content.\n"
+            "Skip generic filler like 'this file is important for the project.' If the "
+            "file is trivial (e.g. a near-empty init file), say so in one short sentence "
+            "instead of padding it.\n\n"
+            f"Content:\n{content[:8000]}"
         )
         summaries[path] = response.content
 
@@ -125,15 +134,33 @@ def synthesizer_node(state: AgentState) -> AgentState:
         f"### {path}\n{summary}" for path, summary in state["file_summaries"].items()
     )
     prompt = (
-        "You are writing an onboarding brief for a developer new to this codebase.\n\n"
+        "You are a senior engineer writing an onboarding brief for another engineer who "
+        "has never seen this codebase. Be specific and concrete — every claim should be "
+        "traceable to something in the README or file summaries below, not a generic "
+        "description that could apply to any repo. Cite file paths in backticks "
+        "(e.g. `src/main.py`) whenever you reference a specific file.\n\n"
         f"Repo description: {metadata.get('description')}\n"
         f"Primary language: {metadata.get('language')}\n"
         f"Stars: {metadata.get('stars')}\n\n"
-        f"README:\n{(metadata.get('readme') or '')[:4000]}\n\n"
+        f"README:\n{(metadata.get('readme') or '')[:6000]}\n\n"
         f"File summaries:\n{summaries_text}\n\n"
-        "Produce a structured markdown brief with exactly these sections: "
-        "## Overview, ## Architecture, ## Key Modules, ## Entry Points, "
-        "## Suggested First Tasks."
+        "Produce a structured markdown brief with exactly these sections, in this order:\n\n"
+        "## Overview — 2-4 sentences on what this project actually does and who it's for, "
+        "grounded in the README and file summaries, not boilerplate.\n\n"
+        "## Tech Stack & Dependencies — the concrete languages, frameworks, and key "
+        "libraries in use, inferred from manifest files (package.json, "
+        "pyproject.toml, requirements.txt, etc.) and file summaries. Name actual "
+        "package/framework names where you can identify them, not just 'Python'.\n\n"
+        "## Architecture — how the pieces fit together: what depends on what, "
+        "the overall shape of the codebase (e.g. monorepo, single service, plugin "
+        "system), citing specific directories/files as evidence.\n\n"
+        "## Key Modules — a bulleted list of the most important files/directories, each "
+        "with a one-line, specific explanation of its role (not 'this is important').\n\n"
+        "## Entry Points — the concrete file(s) or command(s) to run/import to start "
+        "using this project, if identifiable. If there isn't a runnable entry point "
+        "(e.g. this is a library or content repo), say so explicitly instead of guessing.\n\n"
+        "## Suggested First Tasks — 3-5 concrete, actionable tasks a new contributor "
+        "could pick up this week, each referencing a specific file or module by path."
     )
     response = llm.invoke(prompt)
     return {**state, "draft_brief": response.content}
