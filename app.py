@@ -1,10 +1,18 @@
 import re
 
 import streamlit as st
-from groq import RateLimitError as GroqRateLimitError
 
+from src.config import LLM_PROVIDER
 from src.graph import build_graph
 from src.tools import RateLimitError, RepoNotFoundError
+
+RATE_LIMIT_MARKERS = (
+    "rate_limit_exceeded",
+    "rate limit",
+    "resource_exhausted",
+    "quota",
+    "429",
+)
 
 REPO_URL_PATTERN = re.compile(
     r"^(?:https?://)?github\.com/([^/\s]+)/([^/\s]+?)(?:\.git)?/?$"
@@ -115,21 +123,22 @@ if analyze_clicked:
                 "GitHub API rate limit hit. Add a GITHUB_TOKEN to raise the limit, "
                 "or try again later."
             )
-        except GroqRateLimitError as exc:
-            detail = str(exc)
-            if "tokens per day" in detail or "TPD" in detail:
-                st.session_state.error = (
-                    "Groq's free-tier **daily** token quota is used up for now. It "
-                    "resets on a rolling 24h window — try again later, or upgrade at "
-                    "console.groq.com/settings/billing."
-                )
-            else:
-                st.session_state.error = (
-                    "Groq's free-tier **per-minute** token limit was hit (this repo has "
-                    "a lot of files to summarize at once). Wait a minute and try again."
-                )
         except Exception as exc:  # noqa: BLE001 - surface a clean message, not a traceback
-            st.session_state.error = f"Something went wrong: {exc}"
+            detail = str(exc)
+            if any(marker in detail.lower() for marker in RATE_LIMIT_MARKERS):
+                if "day" in detail.lower():
+                    st.session_state.error = (
+                        f"Your **{LLM_PROVIDER}** free-tier **daily** quota is used up "
+                        "for now. It resets on a rolling window — try again later."
+                    )
+                else:
+                    st.session_state.error = (
+                        f"Your **{LLM_PROVIDER}** free-tier **per-minute** limit was hit "
+                        "(this repo has a lot of files to summarize at once). Wait a "
+                        "minute and try again."
+                    )
+            else:
+                st.session_state.error = f"Something went wrong: {exc}"
 
 if st.session_state.error:
     st.error(st.session_state.error)

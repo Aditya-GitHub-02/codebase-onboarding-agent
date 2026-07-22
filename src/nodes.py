@@ -1,6 +1,11 @@
-from langchain_groq import ChatGroq
-
-from src.config import GROQ_API_KEY, GROQ_MODEL, MAX_PRIORITY_FILES
+from src.config import (
+    GEMINI_MODEL,
+    GOOGLE_API_KEY,
+    GROQ_API_KEY,
+    GROQ_MODEL,
+    LLM_PROVIDER,
+    MAX_PRIORITY_FILES,
+)
 from src.state import AgentState
 from src.tools import get_readme, get_repo_metadata, get_repo_tree, read_file_content
 
@@ -79,6 +84,15 @@ def select_priority_files(file_tree: list[str], max_files: int = 12) -> list[str
 
 
 def _llm():
+    if LLM_PROVIDER == "gemini":
+        from langchain_google_genai import ChatGoogleGenerativeAI
+
+        return ChatGoogleGenerativeAI(
+            model=GEMINI_MODEL, google_api_key=GOOGLE_API_KEY, temperature=0.2
+        )
+
+    from langchain_groq import ChatGroq
+
     return ChatGroq(model=GROQ_MODEL, api_key=GROQ_API_KEY, temperature=0.2)
 
 
