@@ -23,7 +23,7 @@ Landing on an unfamiliar codebase is slow. You clone it, open a dozen files at r
 
 ## How it works
 
-A 4-node LangGraph agent loop, backed by Groq's `llama-3.3-70b-versatile`:
+A 4-node LangGraph agent loop, backed by a pluggable LLM provider (Groq by default):
 
 ```mermaid
 flowchart LR
@@ -53,7 +53,7 @@ This is the project's core differentiator: engineering judgment about *what's wo
 ## Tech stack
 
 - [LangGraph](https://github.com/langchain-ai/langgraph) — agent state graph and control flow
-- [langchain-groq](https://github.com/langchain-ai/langchain) + Groq's `llama-3.3-70b-versatile` — fast, free-tier LLM inference
+- Swappable LLM provider via `LLM_PROVIDER`: [Groq](https://groq.com) (default, free, no card needed), [Gemini](https://ai.google.dev) (higher free-tier caps, requires billing on file), or [Ollama](https://ollama.com) (fully free, runs locally, no rate limits, lower quality on small models)
 - [Streamlit](https://streamlit.io/) — UI with a live, streaming agent trace
 - GitHub REST API (`requests`) — repo metadata, file tree, and file content
 - `pytest` + `pytest-cov` — unit tests with mocked network/LLM calls
@@ -67,10 +67,15 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# then edit .env and set GROQ_API_KEY (required) and GITHUB_TOKEN (optional, raises rate limit)
+# then edit .env and set GROQ_API_KEY (required unless using ollama) and GITHUB_TOKEN
+# (optional, raises the GitHub API rate limit)
 
 streamlit run app.py
 ```
+
+### Switching LLM providers
+
+Set `LLM_PROVIDER` in `.env` to `groq`, `gemini`, or `ollama`. No code changes needed — `src/nodes.py:_llm()` picks the client based on this one variable. For `ollama`, install [Ollama](https://ollama.com), pull a model (`ollama pull llama3.2`), and make sure `ollama serve` is running locally.
 
 ## Example output
 

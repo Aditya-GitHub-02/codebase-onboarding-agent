@@ -5,6 +5,8 @@ from src.config import (
     GROQ_MODEL,
     LLM_PROVIDER,
     MAX_PRIORITY_FILES,
+    OLLAMA_BASE_URL,
+    OLLAMA_MODEL,
 )
 from src.state import AgentState
 from src.tools import get_readme, get_repo_metadata, get_repo_tree, read_file_content
@@ -90,6 +92,11 @@ def _llm():
         return ChatGoogleGenerativeAI(
             model=GEMINI_MODEL, google_api_key=GOOGLE_API_KEY, temperature=0.2
         )
+
+    if LLM_PROVIDER == "ollama":
+        from langchain_ollama import ChatOllama
+
+        return ChatOllama(model=OLLAMA_MODEL, base_url=OLLAMA_BASE_URL, temperature=0.2)
 
     from langchain_groq import ChatGroq
 
