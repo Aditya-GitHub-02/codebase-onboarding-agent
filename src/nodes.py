@@ -139,17 +139,26 @@ def synthesizer_node(state: AgentState) -> AgentState:
     return {**state, "draft_brief": response.content}
 
 
+MAX_CRITIC_CANDIDATES = 60
+
+
 def critic_node(state: AgentState) -> AgentState:
     llm = _llm()
-    file_tree_text = "\n".join(state["file_tree"])
+    already_read = set(state["priority_files"])
+    remaining = [path for path in state["file_tree"] if path not in already_read]
+    candidates = sorted(remaining, key=_score, reverse=True)[:MAX_CRITIC_CANDIDATES]
+    candidates_text = "\n".join(candidates)
+
     prompt = (
-        "Review this onboarding brief against the full repo file tree. Are there any "
-        "obviously important files (main entry point, core config, CI setup) that were "
-        "missed? Respond with a JSON object: "
+        "Review this onboarding brief. Below is a shortlist of files from the repo that "
+        "were NOT read yet (the rest of the repo's files were already covered). Are any of "
+        "these obviously important (main entry point, core config, CI setup) and worth "
+        "adding? Respond with a JSON object: "
         '{"missing_files": ["path1", "path2"]} (empty list if none, at most 3 paths that '
-        "actually appear in the file tree below).\n\n"
+        "actually appear in the shortlist below).\n\n"
         f"Brief:\n{state['draft_brief']}\n\n"
-        f"File tree:\n{file_tree_text}"
+        f"Unread file shortlist ({len(remaining)} unread files total, showing top "
+        f"{len(candidates)}):\n{candidates_text}"
     )
     response = llm.invoke(prompt)
 
@@ -161,7 +170,7 @@ def critic_node(state: AgentState) -> AgentState:
         missing = [
             path
             for path in parsed.get("missing_files", [])
-            if path in state["file_tree"]
+            if path in candidates
         ][:MAX_CRITIC_ADDITIONS]
     except (json.JSONDecodeError, AttributeError):
         missing = []
